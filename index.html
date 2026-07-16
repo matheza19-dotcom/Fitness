@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitness Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-200 min-h-screen p-4 md:p-8 font-sans">
+
+    <div class="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- LINKER BEREICH: Ziel, Kalender & Ringdiagramm -->
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+            <h1 class="text-2xl font-bold text-center mb-2 text-white">
+                Fitness Dashboard
+            </h1>
+            <p class="text-slate-400 text-center text-sm mb-6">Verfolgen Sie Ihre Aktivitäten und Ziele.</p>
+            
+            <div class="mb-6 flex gap-2 items-end">
+                <div class="flex-1">
+                    <label class="block text-sm font-semibold mb-2 text-slate-300">Tagesziel (Kalorien):</label>
+                    <input id="goalInput" type="number" value="500" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
+                </div>
+                <button onclick="updateGoal()" class="bg-blue-600 hover:bg-blue-500 h-[42px] text-white font-semibold px-4 rounded-lg transition">Speichern</button>
+            </div>
+
+            <!-- Interaktiver Kalender mit Ringdiagrammen -->
+            <div class="mb-6 bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+                <div class="flex justify-between items-center mb-4">
+                    <button onclick="changeMonth(-1)" class="text-slate-400 hover:text-white px-3 py-1 bg-slate-700 rounded">&lt;</button>
+                    <span id="monthLabel" class="font-bold text-slate-200"></span>
+                    <button onclick="changeMonth(1)" class="text-slate-400 hover:text-white px-3 py-1 bg-slate-700 rounded">&gt;</button>
+                </div>
+                <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-slate-400 mb-2">
+                    <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+                </div>
+                <!-- Hier werden die runden Tage generiert -->
+                <div id="calendarGrid" class="grid grid-cols-7 gap-1 text-sm mt-2"></div>
+            </div>
+
+            <!-- Großes Ringdiagramm für den ausgewählten Tag -->
+            <div class="relative w-48 h-48 mx-auto mb-4">
+                <canvas id="progressChart"></canvas>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span id="chartCenterText" class="text-3xl font-bold text-green-400">0</span>
+                    <span class="text-xs text-slate-400">kcal</span>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <p id="remainingText" class="text-sm text-slate-300 mb-2"></p>
+                <p id="suggestionText" class="text-sm text-blue-400 bg-blue-900/20 py-2 px-3 rounded-lg inline-block hidden"></p>
+            </div>
+        </div>
+
+        <!-- RECHTER BEREICH: Eingabe -->
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700 flex flex-col justify-between">
+            <div>
+                <h2 class="text-xl font-bold mb-4 text-slate-100">Aktivität erfassen</h2>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold mb-2 text-slate-300">Sportart:</label>
+                    <select id="exercise" onchange="toggleInputs()" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white cursor-pointer">
+                        <optgroup label="Kraft (Anzahl)">
+                            <option value="liegestuetze">Liegestütze</option>
+                            <option value="kniebeugen">Kniebeugen</option>
+                            <option value="klimmzuege">Klimmzüge</option>
+                            <option value="situps">Sit-ups</option>
+                        </optgroup>
+                        <optgroup label="Statisch (Zeit)">
+                            <option value="plank">Plank / Unterarmstütz</option>
+                            <option value="wandsitzen">Wandsitzen</option>
+                        </optgroup>
+                        <optgroup label="Ausdauer & Teamsport (Zeit)">
+                            <option value="laufen">Laufen / Joggen</option>
+                            <option value="radfahren">Radfahren</option>
+                            <option value="fussball">Fußball</option>
+                            <option value="basketball">Basketball</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div id="repsInputContainer" class="mb-6">
+                    <label class="block text-sm font-semibold mb-2 text-slate-300">Anzahl (Wiederholungen):</label>
+                    <input id="repsInput" type="number" placeholder="z.B. 25" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
+                </div>
+
+                <div id="timeInputContainer" class="mb-6 hidden">
+                    <label class="block text-sm font-semibold mb-2 text-slate-300">Dauer:</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <input id="timeH" type="number" min="0" placeholder="Std." class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white text-center">
+                            <span class="text-xs text-slate-400 block text-center mt-1">h</span>
+                        </div>
+                        <div>
+                            <input id="timeM" type="number" min="0" max="59" placeholder="Min." class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white text-center">
+                            <span class="text-xs text-slate-400 block text-center mt-1">min</span>
+                        </div>
+                        <div>
+                            <input id="timeS" type="number" min="0" max="59" placeholder="Sek." class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white text-center">
+                            <span class="text-xs text-slate-400 block text-center mt-1">sek</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="addWorkout()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md mb-4">
+                    Eintrag hinzufügen
+                </button>
+            </div>
+
+            <div id="feedbackBox" class="p-4 rounded-lg hidden transition-all duration-300 border bg-green-900/30 border-green-500/50">
+                <p class="font-semibold text-green-400 mb-1">Aktivität gespeichert</p>
+                <p id="feedbackText" class="text-sm"></p>
+            </div>
+        </div>
+
+        <!-- UNTERER BEREICH: Historie -->
+        <div class="lg:col-span-2 bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+            <h2 class="text-xl font-bold mb-4 text-slate-100 flex justify-between items-center">
+                <span>Historie (ausgewählter Tag)</span>
+                <button onclick="clearDay()" class="text-sm bg-red-900/50 hover:bg-red-800 text-red-200 py-1.5 px-3 rounded transition">Gesamten Tag leeren</button>
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-700/50 text-slate-400">
+                        <tr>
+                            <th class="px-4 py-3 rounded-tl-lg">Sportart</th>
+                            <th class="px-4 py-3">Menge / Dauer</th>
+                            <th class="px-4 py-3">Kalorien (ca.)</th>
+                            <th class="px-4 py-3 rounded-tr-lg text-right">Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody" class="divide-y divide-slate-700">
+                        <!-- Wird per JS befüllt -->
+                    </tbody>
+                </table>
+                <p id="emptyTableText" class="text-center text-slate-500 py-6 hidden">Für diesen Tag sind keine Aktivitäten eingetragen.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const sportData = {
+            liegestuetze: { name: "Liegestütze", unit: "reps", kcalPerUnit: 0.5 },
+            kniebeugen: { name: "Kniebeugen", unit: "reps", kcalPerUnit: 0.5 },
+            klimmzuege: { name: "Klimmzüge", unit: "reps", kcalPerUnit: 1.0 },
+            situps: { name: "Sit-ups", unit: "reps", kcalPerUnit: 0.4 },
+            plank: { name: "Plank", unit: "time", kcalPerUnit: 5/60 },
+            wandsitzen: { name: "Wandsitzen", unit: "time", kcalPerUnit: 5/60 },
+            laufen: { name: "Laufen", unit: "time", kcalPerUnit: 11/60 },
+            radfahren: { name: "Radfahren", unit: "time", kcalPerUnit: 8/60 },
+            fussball: { name: "Fußball", unit: "time", kcalPerUnit: 9/60 },
+            basketball: { name: "Basketball", unit: "time", kcalPerUnit: 8/60 }
+        };
+
+        let activities = JSON.parse(localStorage.getItem("broWorkouts")) || [];
+        let dailyGoal = parseInt(localStorage.getItem("broGoal")) || 500;
+        let chartInstance = null;
+
+        let currentDate = new Date();
+        let currentMonth = currentDate.getMonth();
+        let currentYear = currentDate.getFullYear();
+        let selectedDateStr = currentDate.toISOString().split('T')[0];
+
+        window.onload = () => {
+            document.getElementById("goalInput").value = dailyGoal;
+            initChart();
+            renderCalendar();
+            loadDayData();
+            toggleInputs();
+        };
+
+        // --- KALENDER LOGIK MIT RINGDIAGRAMMEN ---
+        function renderCalendar() {
+            const calGrid = document.getElementById('calendarGrid');
+            const monthLabel = document.getElementById('monthLabel');
+            calGrid.innerHTML = '';
+            
+            const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+            monthLabel.innerText = `${monthNames[currentMonth]} ${currentYear}`;
+            
+            let firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            let emptyDays = firstDay === 0 ? 6 : firstDay - 1;
+            let daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            for (let i = 0; i < emptyDays; i++) {
+                calGrid.innerHTML += `<div></div>`;
+            }
+            
+            for (let i = 1; i <= daysInMonth; i++) {
+                const m = (currentMonth + 1).toString().padStart(2, '0');
+                const d = i.toString().padStart(2, '0');
+                const dateStr = `${currentYear}-${m}-${d}`;
+                
+                // Berechne Fortschritt für den Tag
+                const dayKcal = activities.filter(a => a.date === dateStr).reduce((sum, w) => sum + w.kcal, 0);
+                const percent = Math.min(100, (dayKcal / dailyGoal) * 100);
+                
+                // Farben für das Ringdiagramm (Grün im Aufbau, Blau wenn Ziel erreicht)
+                let fillColor = percent >= 100 ? '#3b82f6' : '#4ade80';
+                const trackColor = '#334155'; // Hintergrund des Rings (slate-700)
+
+                const isSelected = (dateStr === selectedDateStr);
+                
+                // Design des inneren Kreises je nach Auswahl
+                const innerBg = isSelected ? 'bg-blue-600' : 'bg-slate-800';
+                const textStyle = isSelected ? 'text-white font-bold' : 'text-slate-200';
+                
+                // Generiere den Tag mit CSS conic-gradient
+                calGrid.innerHTML += `
+                    <div class="flex justify-center items-center py-1">
+                        <div class="relative w-10 h-10 rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
+                             style="background: conic-gradient(${fillColor} ${percent}%, ${trackColor} 0);"
+                             onclick="selectDate('${dateStr}')"
+                             title="${dayKcal} kcal">
+                            <!-- Innerer Kreis (erzeugt den Donut-Effekt) -->
+                            <div class="absolute w-[30px] h-[30px] rounded-full ${innerBg} flex items-center justify-center">
+                                <span class="${textStyle} text-sm">${i}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function selectDate(dateStr) {
+            selectedDateStr = dateStr;
+            renderCalendar();
+            loadDayData();
+        }
+
+        function changeMonth(step) {
+            currentMonth += step;
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            renderCalendar();
+        }
+
+        // --- FORMULAR LOGIK ---
+        function toggleInputs() {
+            const exerciseKey = document.getElementById("exercise").value;
+            const data = sportData[exerciseKey];
+            
+            const repsContainer = document.getElementById("repsInputContainer");
+            const timeContainer = document.getElementById("timeInputContainer");
+
+            if (data.unit === "reps") {
+                repsContainer.classList.remove("hidden");
+                timeContainer.classList.add("hidden");
+            } else {
+                repsContainer.classList.add("hidden");
+                timeContainer.classList.remove("hidden");
+            }
+            updateRemainingSuggestion();
+        }
+
+        function updateGoal() {
+            const newGoal = parseInt(document.getElementById("goalInput").value);
+            if (!isNaN(newGoal) && newGoal > 0) {
+                dailyGoal = newGoal;
+                localStorage.setItem("broGoal", dailyGoal);
+                updateChartDisplay();
+                renderCalendar(); // Aktualisiert auch die Ringe im Kalender!
+            }
+        }
+
+        function formatTimeDisplay(totalSeconds) {
+            let h = Math.floor(totalSeconds / 3600);
+            let m = Math.floor((totalSeconds % 3600) / 60);
+            let s = totalSeconds % 60;
+            
+            let parts = [];
+            if (h > 0) parts.push(`${h}h`);
+            if (m > 0) parts.push(`${m}min`);
+            if (s > 0 || parts.length === 0) parts.push(`${s}s`);
+            
+            return parts.join(" ");
+        }
+
+        function addWorkout() {
+            const exerciseKey = document.getElementById("exercise").value;
+            const sport = sportData[exerciseKey];
+            
+            let val = 0; 
+            let displayAmount = "";
+
+            if (sport.unit === "reps") {
+                val = parseFloat(document.getElementById("repsInput").value);
+                if (isNaN(val) || val <= 0) {
+                    alert("Bitte geben Sie eine gültige Anzahl ein.");
+                    return;
+                }
+                displayAmount = `${val} Wdh.`;
+                document.getElementById("repsInput").value = "";
+            } else {
+                let h = parseInt(document.getElementById("timeH").value) || 0;
+                let m = parseInt(document.getElementById("timeM").value) || 0;
+                let s = parseInt(document.getElementById("timeS").value) || 0;
+                
+                val = (h * 3600) + (m * 60) + s;
+                if (val <= 0) {
+                    alert("Bitte geben Sie eine gültige Dauer ein.");
+                    return;
+                }
+                displayAmount = formatTimeDisplay(val);
+                document.getElementById("timeH").value = "";
+                document.getElementById("timeM").value = "";
+                document.getElementById("timeS").value = "";
+            }
+
+            const kcalBurned = Math.round(val * sport.kcalPerUnit);
+
+            activities.push({
+                id: Date.now(),
+                date: selectedDateStr,
+                sportKey: exerciseKey,
+                sportName: sport.name,
+                amount: val,
+                displayAmount: displayAmount,
+                unit: sport.unit,
+                kcal: kcalBurned
+            });
+
+            localStorage.setItem("broWorkouts", JSON.stringify(activities));
+            
+            showFeedback(sport.name, displayAmount, kcalBurned);
+            renderCalendar(); 
+            loadDayData();
+        }
+
+        function deleteEntry(id) {
+            activities = activities.filter(a => a.id !== id);
+            localStorage.setItem("broWorkouts", JSON.stringify(activities));
+            renderCalendar();
+            loadDayData();
+        }
+
+        function loadDayData() {
+            const todaysWorkouts = activities.filter(a => a.date === selectedDateStr);
+            
+            const tbody = document.getElementById("historyTableBody");
+            const emptyText = document.getElementById("emptyTableText");
+            tbody.innerHTML = "";
+            
+            let totalKcalToday = 0;
+
+            if (todaysWorkouts.length === 0) {
+                emptyText.classList.remove("hidden");
+            } else {
+                emptyText.classList.add("hidden");
+                todaysWorkouts.forEach(workout => {
+                    totalKcalToday += workout.kcal;
+                    
+                    let textAmount = workout.displayAmount;
+                    if (!textAmount) {
+                        if (workout.unit === 'reps' || workout.unit === 'Wdh.') {
+                            textAmount = `${workout.amount} Wdh.`;
+                        } else {
+                            textAmount = formatTimeDisplay(workout.amount);
+                        }
+                    }
+
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-slate-700/30 transition border-b border-slate-700/50 last:border-0">
+                            <td class="px-4 py-3 font-medium">${workout.sportName}</td>
+                            <td class="px-4 py-3">${textAmount}</td>
+                            <td class="px-4 py-3 text-green-400">+${workout.kcal}</td>
+                            <td class="px-4 py-3 text-right">
+                                <button onclick="deleteEntry(${workout.id})" class="text-xs bg-red-900/40 hover:bg-red-800 text-red-300 py-1 px-2 rounded transition">Löschen</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            updateChartDisplay(totalKcalToday);
+        }
+
+        function clearDay() {
+            const todaysWorkouts = activities.filter(a => a.date === selectedDateStr);
+            if (todaysWorkouts.length === 0) return;
+
+            if(confirm("Möchten Sie wirklich alle Einträge für diesen Tag löschen?")) {
+                activities = activities.filter(a => a.date !== selectedDateStr);
+                localStorage.setItem("broWorkouts", JSON.stringify(activities));
+                renderCalendar();
+                loadDayData();
+            }
+        }
+
+        // --- CHART & VORSCHLAG LOGIK ---
+        function initChart() {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Verbrannt', 'Fehlt noch'],
+                    datasets: [{
+                        data: [0, dailyGoal],
+                        backgroundColor: ['#4ade80', '#334155'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    cutout: '75%',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    }
+                }
+            });
+        }
+
+        function updateChartDisplay(totalKcalToday = null) {
+            if (totalKcalToday === null) {
+                totalKcalToday = activities.filter(a => a.date === selectedDateStr).reduce((sum, w) => sum + w.kcal, 0);
+            }
+
+            document.getElementById("chartCenterText").innerText = totalKcalToday;
+            
+            const remaining = Math.max(0, dailyGoal - totalKcalToday);
+            const remainingText = document.getElementById("remainingText");
+            
+            if (remaining === 0) {
+                remainingText.innerHTML = `<span class="text-green-400 font-bold">Tagesziel erreicht!</span>`;
+                chartInstance.data.datasets[0].backgroundColor = ['#3b82f6', '#334155']; 
+            } else {
+                remainingText.innerHTML = `Noch <span class="text-yellow-400 font-semibold">${remaining} kcal</span> bis zum Ziel`;
+                chartInstance.data.datasets[0].backgroundColor = ['#4ade80', '#334155']; 
+            }
+
+            chartInstance.data.datasets[0].data = [totalKcalToday, remaining];
+            chartInstance.update();
+
+            updateRemainingSuggestion(remaining);
+        }
+
+        function updateRemainingSuggestion(remainingKcal = null) {
+            if (remainingKcal === null) {
+                const totalKcalToday = activities.filter(a => a.date === selectedDateStr).reduce((sum, w) => sum + w.kcal, 0);
+                remainingKcal = Math.max(0, dailyGoal - totalKcalToday);
+            }
+
+            const suggestionBox = document.getElementById("suggestionText");
+            
+            if (remainingKcal <= 0) {
+                suggestionBox.classList.add("hidden");
+                return;
+            }
+
+            const exerciseKey = document.getElementById("exercise").value;
+            const data = sportData[exerciseKey];
+            
+            const neededAmount = Math.ceil(remainingKcal / data.kcalPerUnit);
+            
+            let suggestionString = "";
+            if (data.unit === 'reps') {
+                suggestionString = `Es fehlen ca. ${neededAmount} Wiederholungen (${data.name}) für das Tagesziel.`;
+            } else {
+                suggestionString = `Es fehlen ca. ${formatTimeDisplay(neededAmount)} (${data.name}) für das Tagesziel.`;
+            }
+            
+            suggestionBox.innerText = suggestionString;
+            suggestionBox.classList.remove("hidden");
+        }
+
+        function showFeedback(sportName, amountStr, kcal) {
+            const box = document.getElementById("feedbackBox");
+            const text = document.getElementById("feedbackText");
+
+            box.classList.remove("hidden");
+            text.innerText = `Eintrag: ${amountStr} ${sportName} (${kcal} kcal).`;
+            
+            setTimeout(() => {
+                box.classList.add("hidden");
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
